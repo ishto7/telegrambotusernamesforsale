@@ -1,19 +1,6 @@
 <?php
 require_once 'config.php';
-
-// Function to send a message to Telegram
-// Note: This requires a bot token to send the notification. 
-// For now, we will use a placeholder. You should create a dedicated bot for notifications
-// and replace 'YOUR_NOTIFICATION_BOT_TOKEN' with its actual token.
-function sendTelegramMessage($chatId, $message, $token = 'YOUR_NOTIFICATION_BOT_TOKEN') {
-    $url = "https://api.telegram.org/bot" . $token . "/sendMessage?chat_id=" . $chatId . "&text=" . urlencode($message);
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $result = curl_exec($ch);
-    curl_close($ch);
-    return $result;
-}
+require_once 'telegram_helpers.php';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $bot_id = filter_input(INPUT_POST, 'bot_id', FILTER_VALIDATE_INT);
