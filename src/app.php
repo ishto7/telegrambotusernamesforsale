@@ -54,61 +54,85 @@ function bootstrap(): array
     loadEnvFile(__DIR__ . '/../.env');
 
     $config = [
-        'db_path' => getenv('DB_PATH') ?: __DIR__ . '/../db/database.sqlite',
+        'db' => [
+            'host' => getenv('DB_HOST') ?: '127.0.0.1',
+            'port' => getenv('DB_PORT') ?: '3306',
+            'database' => getenv('DB_DATABASE') ?: '',
+            'username' => getenv('DB_USERNAME') ?: '',
+            'password' => getenv('DB_PASSWORD') ?: '',
+            'charset' => getenv('DB_CHARSET') ?: 'utf8mb4',
+            'collation' => getenv('DB_COLLATION') ?: 'utf8mb4_unicode_ci',
+        ],
         'telegram_bot_token' => getenv('TELEGRAM_BOT_TOKEN') ?: '',
         'owner_chat_id' => getenv('OWNER_CHAT_ID') ?: '',
         'fixed_reply' => getenv('FIXED_REPLY') ?: "Thanks for reaching out. The owner will see your message and respond here.",
         'app_url' => getenv('APP_URL') ?: '',
     ];
 
-    $pdo = initDatabase($config['db_path']);
+    $pdo = initDatabase($config['db']);
 
     return [$config, $pdo];
 }
 
-function initDatabase(string $dbPath): PDO
+function initDatabase(array $dbConfig): PDO
 {
-    $dbDir = dirname($dbPath);
-    if (!is_dir($dbDir)) {
-        mkdir($dbDir, 0775, true);
+    if (empty($dbConfig['database'])) {
+        throw new RuntimeException('DB_DATABASE is required');
     }
 
-    $pdo = new PDO('sqlite:' . $dbPath);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    $pdo->exec('PRAGMA foreign_keys = ON');
+    $dsn = sprintf(
+        'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+        $dbConfig['host'] ?: '127.0.0.1',
+        $dbConfig['port'] ?: '3306',
+        $dbConfig['database'],
+        $dbConfig['charset'] ?: 'utf8mb4'
+    );
+
+    $pdo = new PDO(
+        $dsn,
+        $dbConfig['username'] ?? '',
+        $dbConfig['password'] ?? '',
+        [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]
+    );
+
+    $charset = $dbConfig['charset'] ?: 'utf8mb4';
+    $collation = $dbConfig['collation'] ?: 'utf8mb4_unicode_ci';
 
     $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS bots (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            status TEXT NOT NULL DEFAULT "active",
-            min_price INTEGER NULL,
+        "CREATE TABLE IF NOT EXISTS bots (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            status VARCHAR(50) NOT NULL DEFAULT 'active',
+            min_price INT NULL,
             notes TEXT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )'
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE {$collation}"
     );
     $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS bids (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            bot_id INTEGER NOT NULL,
-            bidder_name TEXT NOT NULL,
-            contact TEXT NOT NULL,
-            amount INTEGER NULL,
+        "CREATE TABLE IF NOT EXISTS bids (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            bot_id INT UNSIGNED NOT NULL,
+            bidder_name VARCHAR(255) NOT NULL,
+            contact VARCHAR(255) NOT NULL,
+            amount INT NULL,
             message TEXT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(bot_id) REFERENCES bots(id) ON DELETE CASCADE
-        )'
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_bids_bots FOREIGN KEY(bot_id) REFERENCES bots(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE {$collation}"
     );
     $pdo->exec(
-        'CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            direction TEXT NOT NULL,
-            chat_id TEXT NOT NULL,
-            bot_username TEXT NULL,
+        "CREATE TABLE IF NOT EXISTS messages (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            direction VARCHAR(10) NOT NULL,
+            chat_id VARCHAR(255) NOT NULL,
+            bot_username VARCHAR(255) NULL,
             text TEXT NOT NULL,
-            is_owner INTEGER NOT NULL DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )'
+            is_owner TINYINT(1) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE {$collation}"
     );
 
     return $pdo;
@@ -122,7 +146,7 @@ function sanitize(string $value): string
 function fetchBots(PDO $pdo): array
 {
     $stmt = $pdo->query('SELECT * FROM bots ORDER BY status ASC, username ASC');
-    return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    return $stmt->fetchAll() ?: [];
 }
 
 function fetchBotByUsername(PDO $pdo, string $username): ?array

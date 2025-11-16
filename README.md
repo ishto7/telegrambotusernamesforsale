@@ -6,7 +6,8 @@ Lightweight PHP project that:
 - Sends bids from the website to the owner on Telegram.
 
 ## Prerequisites
-- PHP 8.0+ with SQLite PDO extension and cURL enabled.
+- PHP 8.0+ with MySQL PDO extension and cURL enabled.
+- A MySQL database created for this app (tables are created automatically).
 
 ## Setup
 1) Copy environment file:
@@ -17,10 +18,11 @@ Fill in:
 - `TELEGRAM_BOT_TOKEN`: Bot token from BotFather.
 - `OWNER_CHAT_ID`: Your Telegram chat id to receive notifications and send replies.
 - `APP_URL`: Public URL serving this app (e.g., `https://yourdomain.com`).
-- `DB_PATH`: Where the SQLite file lives (default `./db/database.sqlite`).
+- `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`: MySQL connection.
+- (Optional) `DB_CHARSET`, `DB_COLLATION`: MySQL charset/collation (defaults to utf8mb4).
 - `FIXED_REPLY`: Message buyers see automatically.
 
-2) Install dependencies (none beyond PHP) and build tables automatically on first run.
+2) Install dependencies (none beyond PHP) and ensure the MySQL database exists; tables are built automatically on first run.
 
 3) Seed at least one bot:
 ```bash
@@ -54,6 +56,6 @@ Owner flow:
 - `GET /health`: Health check.
 
 ## Notes
-- Tables are created on first request; SQLite lives under `db/`.
+- Tables are created on first request inside your configured MySQL database.
 - Messages and bids are logged for transparency.
 - Add simple auth/admin as needed before exposing management actions.

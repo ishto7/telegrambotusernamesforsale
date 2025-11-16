@@ -10,8 +10,10 @@
 <body>
 <div class="container">
     <header>
-        <h1>Telegram Bot Usernames for Sale</h1>
-        <a href="/">Home</a>
+        <div>
+            <h1>Telegram Bot Usernames for Sale</h1>
+            <p style="margin:4px 0 0 0; color:#475569;">Browse available bot handles and place your bid.</p>
+        </div>
     </header>
 
     <?php if (empty($bots)): ?>
