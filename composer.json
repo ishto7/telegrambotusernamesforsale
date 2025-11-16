@@ -1,0 +1,13 @@
+{
+    "name": "jules/telegram-bot-username-marketplace",
+    "description": "A marketplace for Telegram bot usernames.",
+    "require": {
+        "vlucas/phpdotenv": "^5.4"
+    },
+    "authors": [
+        {
+            "name": "Jules",
+            "email": "jules@example.com"
+        }
+    ]
+}
