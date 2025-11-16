@@ -1,45 +1,23 @@
 <?php
 require_once 'config.php';
+require_once 'telegram_helpers.php';
 
-// --- Helper Functions for Telegram API ---
-
-/**
- * Sends a text message to a chat.
- */
-function sendTelegramMessage($chatId, $text, $token) {
-    $data = [
-        'chat_id' => $chatId,
-        'text' => $text,
-    ];
-    return executeCurl("sendMessage", $data, $token);
+// --- Logging ---
+// Basic logging to a file for debugging purposes.
+$log_file = 'webhook_log.txt';
+function log_message($message) {
+    global $log_file;
+    file_put_contents($log_file, date('Y-m-d H:i:s') . ' - ' . $message . "\n", FILE_APPEND);
 }
 
-/**
- * Forwards a message from one chat to another.
- */
-function forwardTelegramMessage($chatId, $fromChatId, $messageId, $token) {
-    $data = [
-        'chat_id' => $chatId,
-        'from_chat_id' => $fromChatId,
-        'message_id' => $messageId,
-    ];
-    return executeCurl("forwardMessage", $data, $token);
+// Get the incoming update from Telegram
+$update = json_decode(file_get_contents('php://input'), true);
+if (!$update) {
+    exit;
 }
 
-/**
- * Executes a cURL request to the Telegram Bot API.
- */
-function executeCurl($method, $data, $token) {
-    $url = "https://api.telegram.org/bot" . $token . "/" . $method;
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    $result = curl_exec($ch);
-    curl_close($ch);
-    return $result;
-}
+// Log the entire update
+log_message("Received update: " . json_encode($update, JSON_PRETTY_PRINT));
 
 
 // --- Main Webhook Logic ---
@@ -48,29 +26,26 @@ function executeCurl($method, $data, $token) {
 $bot_id = filter_input(INPUT_GET, 'bot_id', FILTER_VALIDATE_INT);
 if (!$bot_id) {
     http_response_code(400);
-    die("Bot ID is missing or invalid.");
+    $error_message = "Bot ID is missing or invalid.";
+    log_message($error_message);
+    die($error_message);
 }
 
-// Fetch the bot's token and owner's chat ID from the database
-$stmt = $conn->prepare("SELECT token, owner_chat_id FROM bots WHERE id = ?");
+// Fetch the bot's owner's chat ID from the database
+$stmt = $conn->prepare("SELECT owner_chat_id FROM bots WHERE id = ?");
 $stmt->bind_param("i", $bot_id);
 $stmt->execute();
 $result = $stmt->get_result();
 if ($result->num_rows === 0) {
     http_response_code(404);
-    die("Bot not found.");
+    $error_message = "Bot not found for ID: " . $bot_id;
+    log_message($error_message);
+    die($error_message);
 }
 $bot = $result->fetch_assoc();
-$bot_token = $bot['token'];
 // Use the owner_chat_id from the database, or fall back to the one in config.php
 $owner_chat_id = $bot['owner_chat_id'] ?: TELEGRAM_OWNER_ID; 
 
-
-// Get the incoming update from Telegram
-$update = json_decode(file_get_contents('php://input'), true);
-if (!$update) {
-    exit;
-}
 
 // Check for a message
 if (isset($update['message'])) {
@@ -88,7 +63,8 @@ if (isset($update['message'])) {
             $reply_text = $text;
 
             // Send the owner's reply back to the buyer
-            sendTelegramMessage($buyer_chat_id, $reply_text, $bot_token);
+            log_message("Replying to buyer ($buyer_chat_id): $reply_text");
+            sendTelegramMessage($buyer_chat_id, $reply_text);
         }
     } 
     // Scenario 2: A potential buyer is messaging the bot
@@ -99,11 +75,13 @@ if (isset($update['message'])) {
         // If it's the /start command, send a welcome message first
         if ($text === '/start') {
             $welcome_message = "Thanks for your interest in this username! Please leave your message here, and the owner will get back to you soon.";
-            sendTelegramMessage($buyer_chat_id, $welcome_message, $bot_token);
+            log_message("Sending welcome message to: $buyer_chat_id");
+            sendTelegramMessage($buyer_chat_id, $welcome_message);
         }
 
         // Forward the buyer's message to the owner for review
-        forwardTelegramMessage($owner_chat_id, $buyer_chat_id, $message_id, $bot_token);
+        log_message("Forwarding message from $buyer_chat_id to owner $owner_chat_id");
+        forwardTelegramMessage($owner_chat_id, $buyer_chat_id, $message_id);
     }
 }
 
